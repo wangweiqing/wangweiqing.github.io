@@ -1,24 +1,92 @@
-<?xml version="1.0" encoding="utf-8"?>
-<feed xmlns="http://www.w3.org/2005/Atom">
 
-  <title><![CDATA[进击的王胖子]]></title>
-  <link href="http://wangweiqing.github.io/atom.xml" rel="self"/>
-  <link href="http://wangweiqing.github.io/"/>
-  <updated>2016-05-28T15:20:03+08:00</updated>
-  <id>http://wangweiqing.github.io/</id>
-  <author>
-    <name><![CDATA[王胖子]]></name>
-    
-  </author>
-  <generator uri="http://octopress.org/">Octopress</generator>
+<!DOCTYPE html>
+<!--[if IEMobile 7 ]><html class="no-js iem7"><![endif]-->
+<!--[if lt IE 9]><html class="no-js lte-ie8"><![endif]-->
+<!--[if (gt IE 8)|(gt IEMobile 7)|!(IEMobile)|!(IE)]><!--><html class="no-js" lang="en"><!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  <title>聊聊并发-锁 - 进击的王胖子</title>
+  <meta name="author" content="王胖子">
 
   
-  <entry>
-    <title type="html"><![CDATA[聊聊并发-锁]]></title>
-    <link href="http://wangweiqing.github.io/blog/2016/05/09/liao-liao-bing-fa-suo/"/>
-    <updated>2016-05-09T21:48:19+08:00</updated>
-    <id>http://wangweiqing.github.io/blog/2016/05/09/liao-liao-bing-fa-suo</id>
-    <content type="html"><![CDATA[<h1>前言</h1>
+  <meta name="description" content="前言 互联网业务中难免存在一些需要并发的业务。在开发并行业务的代码的时候，重中之重是保证线程的安全。为了保证线程的安全，我们尽可能的增强任务代码的独立性。但是在一些特殊的场景中还是需要为多个并行线程提供共享变量，为了保证每个线程的线程安全，java为我们提供了一系列的工具来满足我们的需要。 &hellip;">
+  
+
+  <!-- http://t.co/dKP3o1e -->
+  <meta name="HandheldFriendly" content="True">
+  <meta name="MobileOptimized" content="320">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  
+  <link rel="canonical" href="http://wangweiqing.github.io/blog/2016/05/09/liao-liao-bing-fa-suo/">
+  <link href="/favicon.png" rel="icon">
+  <link href="/stylesheets/screen.css" media="screen, projection" rel="stylesheet" type="text/css">
+  <link href="/atom.xml" rel="alternate" title="进击的王胖子" type="application/atom+xml">
+  <script src="/javascripts/modernizr-2.0.js"></script>
+  <!-- <script src="//ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.min.js"></script> -->
+  <script src="http://cdn.staticfile.org/jquery/1.9.1/jquery.min.js"></script>
+  <script>!window.jQuery && document.write(unescape('%3Cscript src="/javascripts/libs/jquery.min.js"%3E%3C/script%3E'))</script>
+  <script src="/javascripts/octopress.js" type="text/javascript"></script>
+  <!--Fonts from Google"s Web font directory at http://google.com/webfonts -->
+<!-- <link href="//fonts.googleapis.com/css?family=PT+Serif:regular,italic,bold,bolditalic" rel="stylesheet" type="text/css"> -->
+<!-- <link href="//fonts.googleapis.com/css?family=PT+Sans:regular,italic,bold,bolditalic" rel="stylesheet" type="text/css"> -->
+
+  
+
+</head>
+
+<body   >
+  <header role="banner"><hgroup>
+  <h1><a href="/">进击的王胖子</a></h1>
+  
+    <h2>艰难学习中的胖子</h2>
+  
+</hgroup>
+
+</header>
+  <nav role="navigation"><ul class="subscription" data-subscription="rss">
+  <li><a href="/atom.xml" rel="subscribe-rss" title="subscribe via RSS">RSS</a></li>
+  
+</ul>
+  
+<form action="https://www.google.com/search" method="get">
+  <fieldset role="search">
+    <input type="hidden" name="sitesearch" value="wangweiqing.github.io">
+    <input class="search" type="text" name="q" results="0" placeholder="Search"/>
+  </fieldset>
+</form>
+  
+<ul class="main-navigation">
+  <li><a href="/">Blog</a></li>
+  <li><a href="/blog/archives">Archives</a></li>
+  <li><a href="/about-me">About</a></li>
+</ul>
+
+</nav>
+  <div id="main">
+    <div id="content">
+      <div>
+<article class="hentry" role="article">
+  
+  <header>
+    
+      <h1 class="entry-title">聊聊并发-锁</h1>
+    
+    
+      <p class="meta">
+        
+
+
+
+
+<time class='entry-date' datetime='2016-05-09T21:48:19+08:00'><span class='date'><span class='date-month'>May</span> <span class='date-day'>9</span><span class='date-suffix'>th</span>, <span class='date-year'>2016</span></span> <span class='time'>9:48 pm</span></time>
+        
+      </p>
+    
+  </header>
+
+
+<div class="entry-content"><h1>前言</h1>
 
 <p>互联网业务中难免存在一些需要并发的业务。在开发并行业务的代码的时候，重中之重是保证线程的安全。为了保证线程的安全，我们尽可能的增强任务代码的独立性。但是在一些特殊的场景中还是需要为多个并行线程提供共享变量，为了保证每个线程的线程安全，java为我们提供了一系列的工具来满足我们的需要。<br/>
 java在早期提供了synchronized关键字作为一种手段来保证线程安全。但是开发人员在实际的使用中发现synchronized机制下进行加锁会极大的影响到性能。<br/>
@@ -158,93 +226,95 @@ Node节点在设计的时候，除了最基本的双向链表之外，也为每�
 
 <p>虽然java在1.5和1.6对synchronized关键字的具体实现机制进行了升级，但是仍然主要针对多线程竞争锁的发生概率极低的条件进行的假设。当真正的业务场景中，出现了大量的线程竞争锁的场景出现。就会带来锁膨胀的问题。从而导致性能下降。<br/>
 而AQS在没有多线程竞争锁的场景下，表现尚可，多线程竞争锁的状态下，性能要比synchronized的性能略胜一筹。</p>
-]]></content>
-  </entry>
+</div>
+
+
+  <footer>
+    <p class="meta">
+      
   
-  <entry>
-    <title type="html"><![CDATA[ElasticSearch初探——集群环境搭建]]></title>
-    <link href="http://wangweiqing.github.io/blog/2015/12/13/elasticsearchchu-tan-ji-qun-huan-jing-da-jian/"/>
-    <updated>2015-12-13T01:26:25+08:00</updated>
-    <id>http://wangweiqing.github.io/blog/2015/12/13/elasticsearchchu-tan-ji-qun-huan-jing-da-jian</id>
-    <content type="html"><![CDATA[<h1>前言</h1>
 
-<p>加入新公司之后分到的第一个项目涉及到对商品进行筛选的需求。当时直接采用了数据库建立索引进行商品的筛选。不幸被Leader狂喷一顿。后来窝窝团的星游哥及时加入了我们的团队，使用了ElasticSearch重构了这个功能。这是我人生中第一次接触到ElasticSearch。<br/>
-目前业内经常提及到的日志分析系统很多都是使用ELK进行搭建，也就是使用ElasticSearch、Logstash和Kibana作为基础的服务组件，进行二次开发。除此之外，ElasticSearch也在电商领域有一些应用。比如说窝窝团的C端商品搜索即使用的ElasticSearch。现在的公司应为技术传承问题，之前的java开发搜索引擎的选型为solr，所以在ElasticSearch上并没有太多的实战案例。但是考虑到Solr和ElasticSearch的对比，在一些新的项目中也开始逐渐尝试使用ElasticSearch。<br/>
-由于我们现有的开发任务的需要，所以在业务时间对ElasticSearch进行了一些学习。打算写一个学习ElasticSearch的文章，供其他初学者使用。<br/>
-本系列讨论的ElasticSearch版本为2.1，其他版本的问题，可以自行联系星游哥哦～</p>
+<span class="byline author vcard">Posted by <span class="fn">王胖子</span></span>
 
-<h1>OS环境准备</h1>
-
-<p>长时间使用RHEL系列的服务器OS，所以就不假思索的选择了CentOS 6.5。当然这也跟所处的公司有关，比如说我们公司线上服务器用的就是CentOS。<br/>
-准备了2台虚拟机作为2个node。每台机器分配了4G的内存。</p>
-
-<h2>java环境</h2>
-
-<p>ElasticSearch最底层实际上是一个个Luence，所以需要java环境。现在正好赶上全司Java端升级java8的趋势，所以在两台虚拟机上均安装了java8。</p>
-
-<h2>关闭防火墙</h2>
-
-<p>考虑到结点之间需要大量的网络通讯，防止iptables捣乱，所以在机器安装好之后就将两台机器的防火墙关闭。</p>
-
-<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
-<span class='line-number'>2</span>
-</pre></td><td class='code'><pre><code class=''><span class='line'>service iptables stop  
-</span><span class='line'>chkconfig iptables off  </span></code></pre></td></tr></table></div></figure>
+      
 
 
-<h1>ElasticSearch+Kibana安装</h1>
-
-<p>从官网上下载最新的ElasticSearch安装包到本地，然后解压到指定的目录。考虑到ElasticSearch的master选举机制，本着先将环境搭建起来的原则，所以这次采用了单master的机制。将Kibana解压到master机器上。<br/>
-按照官网的要求，在每个ElasticSearch上安装了license和marvel-agent。</p>
-
-<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
-<span class='line-number'>2</span>
-</pre></td><td class='code'><pre><code class=''><span class='line'>bin/plugin install license  
-</span><span class='line'>bin/plugin install marvel-agent  </span></code></pre></td></tr></table></div></figure>
 
 
-<p>在Kibana中安装Marvel。</p>
+<time class='entry-date' datetime='2016-05-09T21:48:19+08:00'><span class='date'><span class='date-month'>May</span> <span class='date-day'>9</span><span class='date-suffix'>th</span>, <span class='date-year'>2016</span></span> <span class='time'>9:48 pm</span></time>
+      
 
-<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
-</pre></td><td class='code'><pre><code class=''><span class='line'>bin/kibana plugin --install elasticsearch/marvel/latest  </span></code></pre></td></tr></table></div></figure>
-
-
-<p>这样我们就可以在Kibana启动后，通过一个网页看到ElasticSearch的集群情况。</p>
-
-<h1>ElasticSearch+Kibana配置文件修改</h1>
-
-<p>ElasticSearch master机配置。</p>
-
-<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
-<span class='line-number'>2</span>
-<span class='line-number'>3</span>
-<span class='line-number'>4</span>
-<span class='line-number'>5</span>
-<span class='line-number'>6</span>
-</pre></td><td class='code'><pre><code class=''><span class='line'>cluster.name: wwq-es//cluster的名称，当当前网络中存在多个ElasticSearch的cluster的时候，使用cluster的名称作为区分。  
-</span><span class='line'>node.name: es-1//当前结点的名称。
-</span><span class='line'>network.host: 192.168.253.133//当前节点的IP。
-</span><span class='line'>discovery.zen.ping.multicast.enabled: false//不允许使用multicast的发现方式，官方就是不推荐，我也不知道。
-</span><span class='line'>discovery.zen.ping.unicast.hosts: ["192.168.253.133:9300","192.168.253.134:9300"]//集群节点发现列表
-</span><span class='line'>discovery.zen.minimum_master_nodes: 1</span></code></pre></td></tr></table></div></figure>
-
-
-<p>这里主要要说一下节点IP的问题。ElasticSearch里将IP区分为bind_host和publish_host，其中关于publish_host的原文说明是<code>The network.publish_host setting allows to control the host the node will publish itself within the cluster so other nodes will be able to connect to it.</code>起初只配置了publish_host但是发现两个节点还是无法通讯。所以将network.host给改成了本机的ip了。相应的也要变更Kibana的配置文件了。</p>
-
-<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
-</pre></td><td class='code'><pre><code class=''><span class='line'>elasticsearch.url: "http://192.168.253.133:9200"</span></code></pre></td></tr></table></div></figure>
-
-
-<p>ElasticSearch slave机配置。</p>
-
-<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
-<span class='line-number'>2</span>
-</pre></td><td class='code'><pre><code class=''><span class='line'>node.data: true
-</span><span class='line'>node.master: false</span></code></pre></td></tr></table></div></figure>
-
-
-<p>与master机器的唯一差异就是设置该机器不能被选举成为master。</p>
-]]></content>
-  </entry>
+<span class="categories">
   
-</feed>
+    <a class='category' href='/blog/categories/juc/'>juc</a>
+  
+</span>
+
+
+    </p>
+    
+      <div class="sharing">
+  
+  
+  
+</div>
+
+    
+    <p class="meta">
+      
+        <a class="basic-alignment left" href="/blog/2015/12/13/elasticsearchchu-tan-ji-qun-huan-jing-da-jian/" title="Previous Post: ElasticSearch初探——集群环境搭建">&laquo; ElasticSearch初探——集群环境搭建</a>
+      
+      
+    </p>
+  </footer>
+</article>
+
+</div>
+
+<aside class="sidebar">
+  
+    <section>
+  <h1>Recent Posts</h1>
+  <ul id="recent_posts">
+    
+      <li class="post">
+        <a href="/blog/2016/05/09/liao-liao-bing-fa-suo/">聊聊并发-锁</a>
+      </li>
+    
+      <li class="post">
+        <a href="/blog/2015/12/13/elasticsearchchu-tan-ji-qun-huan-jing-da-jian/">ElasticSearch初探——集群环境搭建</a>
+      </li>
+    
+  </ul>
+</section>
+
+
+
+
+
+  
+</aside>
+
+
+    </div>
+  </div>
+  <footer role="contentinfo"><p>
+  Copyright &copy; 2016 - 王胖子 -
+  <span class="credit">Powered by <a href="http://octopress.org">Octopress</a></span>
+</p>
+
+</footer>
+  
+
+
+
+
+
+
+
+
+
+
+
+</body>
+</html>

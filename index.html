@@ -9,7 +9,7 @@
   <meta name="author" content="王胖子">
 
   
-  <meta name="description" content="前言 加入新公司之后分到的第一个项目涉及到对商品进行筛选的需求。当时直接采用了数据库建立索引进行商品的筛选。不幸被Leader狂喷一顿。后来窝窝团的星游哥及时加入了我们的团队，使用了ElasticSearch重构了这个功能。这是我人生中第一次接触到ElasticSearch。 &hellip;">
+  <meta name="description" content="前言 互联网业务中难免存在一些需要并发的业务。在开发并行业务的代码的时候，重中之重是保证线程的安全。为了保证线程的安全，我们尽可能的增强任务代码的独立性。但是在一些特殊的场景中还是需要为多个并行线程提供共享变量，为了保证每个线程的线程安全，java为我们提供了一系列的工具来满足我们的需要。 &hellip;">
   
 
   <!-- http://t.co/dKP3o1e -->
@@ -67,6 +67,174 @@
     <div id="content">
       <div class="blog-index">
   
+  
+  
+    <article>
+      
+  <header>
+    
+      <h1 class="entry-title"><a href="/blog/2016/05/09/liao-liao-bing-fa-suo/">聊聊并发-锁</a></h1>
+    
+    
+      <p class="meta">
+        
+
+
+
+
+<time class='entry-date' datetime='2016-05-09T21:48:19+08:00'><span class='date'><span class='date-month'>May</span> <span class='date-day'>9</span><span class='date-suffix'>th</span>, <span class='date-year'>2016</span></span> <span class='time'>9:48 pm</span></time>
+        
+      </p>
+    
+  </header>
+
+
+  <div class="entry-content"><h1>前言</h1>
+
+<p>互联网业务中难免存在一些需要并发的业务。在开发并行业务的代码的时候，重中之重是保证线程的安全。为了保证线程的安全，我们尽可能的增强任务代码的独立性。但是在一些特殊的场景中还是需要为多个并行线程提供共享变量，为了保证每个线程的线程安全，java为我们提供了一系列的工具来满足我们的需要。<br/>
+java在早期提供了synchronized关键字作为一种手段来保证线程安全。但是开发人员在实际的使用中发现synchronized机制下进行加锁会极大的影响到性能。<br/>
+所以在1.5版本中，新增了一个基于AQS(AbstractQueuedSynchronizer)来实现的一系列的锁。
+在1.6版本中，java又对原有的synchronized锁进行了优化，使其性能有了一定的提升。<br/>
+下面就讲对两种锁的机制分别进行一一介绍。</p>
+
+<h1>Synchronized</h1>
+
+<p>synchronized实际上应该算是一种java内置锁，大部分实现依赖jvm虚拟机的实现。所以在使用上，synchronized对java语言开发者来说更为友好。大部分的开发者不用关心synchronized的内部实现是怎样的。只需要按照java语法规范对临界区进行加锁即可。<br/>
+在1.6版本之前，synchronized被称为重量级锁，其实现机制是这样的。<br/>
+JVM会为每一个被synchronized关联为锁的对象(Object)关联一个对象监视器(Monitor)，monitorenter指令是在编译后插入到同步代码块的开始位置，而monitorexit是插入到方法结束处和异常处， JVM要保证每个monitorenter必须有对应的monitorexit与之配对。<br/>
+而每个monitor对象都包含了如下几个部分，cxq(Contention List)，EntryList，Wait Set。</p>
+
+<ol>
+<li>cxq(Contention List) FILO竞争队列，应对多线程竞争锁的时候，使用CAS操作替换队列头部。</li>
+<li>EntryList cxq中的合适线程可以被放入EntryList，Wait Set中的线程被notify()之后，也会放入EntryList中，准备竞争锁。</li>
+<li>Wait Set 线程被wait()后，将会被放入Wait Set中。</li>
+</ol>
+
+
+<p><img src="https://github.com/wangweiqing/wangweiqing.github.io/raw/master/images/lock.png" alt="" />
+竞争锁的线程都会先通过互斥同步或CAS操作进入cxq，队首的对象会进入到EntryList中，进行tryLock操作。成功则获得当前锁。如果失败，则被调用wait()阻塞，进入到Wait Set中。当进入Wait Set中的线程被notify()后，线程将进入到EntryList中。如果是被notifyAll()线程将重新通过互斥同步或CAS操作进入到cxq中。<br/>
+通过上述的描述，大家可以发现java实现的内置锁在多线程并发过程中会涉及到大量的互斥同步或CAS操作。
+当一个线程在进入一段临界区的时候，实际场景是没有线程与该线程进行竞争，这个时候进行互斥同步或CAS操作也是浪费的。<br/>
+所以这个时期的synchronized被称为重量级锁，在java1.6中通过增加偏向锁、轻量级锁来解决上述的问题。</p>
+
+<h2>轻量级锁</h2>
+
+<p>在HotSpot虚拟机里，每个对象的对象头(Object Header)分为两部分信息，一部分是存储对象自身的运行时数据，如哈希码(HashCode)、GC分代年龄(Generational GC Age)等，这部分数据被称为Mark Word，长度为32bit（32位虚拟机）或64bit（64位虚拟机）。另一部分用于存储只想方法区对象类型数据的指针。如果是数组对象，还会有一个额外的部分用于存储数组长度。</p>
+
+<table>
+<thead>
+<tr>
+<th> </th>
+<th style="text-align:center;">25bit</th>
+<th style="text-align:center;">4bit</th>
+<th style="text-align:center;">1bit(是否为偏向锁)</th>
+<th style="text-align:center;">2bit(锁标志位)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>无锁状态</td>
+<td style="text-align:center;">对象HashCode</td>
+<td style="text-align:center;">对象分代年龄</td>
+<td style="text-align:center;">0</td>
+<td style="text-align:center;">01</td>
+</tr>
+</tbody>
+</table>
+
+
+<p>当有锁状态时</p>
+
+<table>
+<thead>
+<tr>
+<th style="text-align:center;">锁状态</th>
+<th style="text-align:center;">25bit</th>
+<th style="text-align:center;">4bit</th>
+<th style="text-align:center;">1bit</th>
+<th style="text-align:center;">2bit(锁标志位)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:center;">轻量级锁</td>
+<td style="text-align:center;">指向栈中的锁指针</td>
+<td style="text-align:center;">指向栈中的锁指针</td>
+<td style="text-align:center;">指向栈中的锁指针</td>
+<td style="text-align:center;">00</td>
+</tr>
+<tr>
+<td style="text-align:center;">重量级锁</td>
+<td style="text-align:center;">指向互斥量（重量级锁）指针</td>
+<td style="text-align:center;">指向互斥量（重量级锁）指针</td>
+<td style="text-align:center;">指向互斥量（重量级锁）指针</td>
+<td style="text-align:center;">10</td>
+</tr>
+<tr>
+<td style="text-align:center;">偏向锁</td>
+<td style="text-align:center;">线程ID+epoch（2bit）</td>
+<td style="text-align:center;">对象分代年龄</td>
+<td style="text-align:center;">1</td>
+<td style="text-align:center;">01</td>
+</tr>
+</tbody>
+</table>
+
+
+<p>轻量级锁的设计主要是为了解决在实际并发场景中，并没有锁的竞争情况下，对锁对象加上一个轻量级的锁。规避掉重量级锁的大量的互斥同步或CAS操作。<br/>
+当对象是无锁的状态下，在当前线程的栈帧中建立一个锁记录(Lock Record)空间用于储存当前对象的Mark Word(Displaced Mark Word)，在对象头中通过CAS操作增加一个指向栈中的锁记录指针。操作成功了，则将对象的锁标志位由01变成00。这样涉及到原来重量级锁中的一些操作就被规避掉，线程就获得了锁。<br/>
+当对Mark Word的CAS更新失败的时候，检查指向的锁空间是否为当前线程的锁空间。如果是当前线程的锁空间，则是一个重入；如果不是，则这个锁对象已经被其他线程抢占了，这个时候轻量级锁就会膨胀，膨胀为一个重量级锁。就会进行上述的那些重量级锁的操作。<br/>
+轻量级锁的解锁过程也是通过CAS操作来实现的。将存储在Lock Record中的Displaced Mark Word取回，和原有的头的Mark Word做替换。如果替换成功，则同步过程完成。如果失败，说明其他线程尝试过获取该锁。执行重量级锁解锁。</p>
+
+<h2>偏向锁</h2>
+
+<p>偏向锁的设计主要为了解决在实际的并发场景中，在无竞争的状态下，规避掉同步的操作。<br/>
+实现原理同样很简单，当线程执行到加锁临界区时，对锁进行CAS操作，在Mark Word中写入线程ID，如果CAS操作成功，以后线程每次进入到临界区时，都不需要进行任何同步操作。<br/>
+但是如果说另一个线程对偏向锁进行竞争的时候，发现锁的状态为偏向锁，则会执行撤销偏向锁的操作。当前持锁线程在执行到可退出同步的代码块进行解锁操作，同时将锁升级为轻量级锁，如果另一个线程仍在竞争锁，这个时候锁就会由轻量级锁膨胀为重量级锁。</p>
+
+<h2>小结</h2>
+
+<p>1.6版本对于synchronized的优化主要是基于有同步无竞争的状态进行优化的，减少其中的同步操作，来提升效率，但是在实际的应用场景中，如果一个锁频繁的被数个线程锁竞争，这种优化锁带来的锁膨胀问题反而成为了性能的瓶颈。</p>
+
+<h1>The j.u.c Synchronizer Framework中的AQS</h1>
+
+<p>AQS被称为Synchronizer，一般包含了两种方法一种是acquire（获得锁），一种是release（释放锁）。
+Synchronizer需要实现以下3点<br/>
+1. 同步状态的原子性管理<br/>
+2. 线程的阻塞与解除阻塞管理<br/>
+3. 队列的管理</p>
+
+<p>AQS的基本实现的思路也是提供一个队列（CHL）队首元素占有锁。每个线程在无法直接获得锁的情况下，都会被包装成一个Node节点加入到队列中。当当前队列为空且新进入的线程无法获得锁的时候，通过addWaiter()方法，将线程加入到队列当中。线程会在队列中自旋，不停的去获取锁，直至持有锁，持有锁后会将自己替换成队首。当当前队列不为空的时候，新进入线程会被添加至队尾，使用LockSupport的park方法将线程阻塞。<br/>
+当线程释放锁的时候，会调用release方法。在release方法中将锁释放掉。同时将唤醒当前队列中的第二个Node，让该Node中的线程unparked，进入自旋中，不停的获取锁。<br/>
+Node节点在设计的时候，除了最基本的双向链表之外，也为每个节点增加了一个状态位用以表示Node节点线程现有的状态，在实际操作的过程中，状态位的状态将会根据期望的状态进行CAS操作来更新。具体的状态如下：<br/>
+1. CANCELLED，值为1，表示当前的线程被取消；<br/>
+2. SIGNAL，值为-1，表示当前节点的后继节点包含的线程需要运行，也就是unpark；<br/>
+3. CONDITION，值为-2，表示当前节点在等待condition，也就是在condition队列中；<br/>
+4. PROPAGATE，值为-3，表示当前场景下后续的acquireShared能够得以执行；<br/>
+5. 值为0，表示当前节点在sync队列中，等待着获取锁。</p>
+
+<p>综上所述，我们可以看到，Synchronizer通过对于节点状态的进行CAS操作来保证同步状态的原子性管理。通过CHL队列和LockSupport将对没有或得锁的线程阻塞，需要唤醒的线程接触阻塞。通过对CHL队列的头尾进行CAS操作，来进行队列的管理。<br/>
+<img src="https://github.com/wangweiqing/wangweiqing.github.io/raw/master/images/chl_lock.png" alt="" /></p>
+
+<h2>ConditionObject</h2>
+
+<p>为了实现类似于Synchronized关键字实现机制中的WaitSet中线程被notify()和notifyAll()唤醒的功能，以及共享锁的功能。AQS中增加了一个与Sync队列一样结构的ConditionObject(条件队列)。<br/>
+如果使用者需要在实际的使用场景中增加WaitSet的功能，可以直接将conditionObject对象new出来，当线程在某些特定条件下，如限制了sync队列的长度，队列满了之后，对新的线程调用await()方法，将节点放入conditionObject中。等到一定条件满足后，使用notify()或notifyAll()，将线队列中的线程出队，重新进入sync队列中竞争锁。</p>
+
+<h2>小结</h2>
+
+<p>通过上述的分析，我们可以发现，AQS在无线程竞争锁的条件下，通过一次CAS操作来获得锁，当多个线程竞争锁的时候，没有竞争到锁的线程，通过两步CAS操作（设定队首和对尾），建立一个Sync队列，在获得锁后进行一次CAS操作。以后的线程入队，则通过1次CAS操作变更队尾即可。</p>
+
+<h1>总结</h1>
+
+<p>虽然java在1.5和1.6对synchronized关键字的具体实现机制进行了升级，但是仍然主要针对多线程竞争锁的发生概率极低的条件进行的假设。当真正的业务场景中，出现了大量的线程竞争锁的场景出现。就会带来锁膨胀的问题。从而导致性能下降。<br/>
+而AQS在没有多线程竞争锁的场景下，表现尚可，多线程竞争锁的状态下，性能要比synchronized的性能略胜一筹。</p>
+</div>
+  
+  
+
+
+    </article>
   
   
     <article>
@@ -187,6 +355,10 @@
   <ul id="recent_posts">
     
       <li class="post">
+        <a href="/blog/2016/05/09/liao-liao-bing-fa-suo/">聊聊并发-锁</a>
+      </li>
+    
+      <li class="post">
         <a href="/blog/2015/12/13/elasticsearchchu-tan-ji-qun-huan-jing-da-jian/">ElasticSearch初探——集群环境搭建</a>
       </li>
     
@@ -203,7 +375,7 @@
     </div>
   </div>
   <footer role="contentinfo"><p>
-  Copyright &copy; 2015 - 王胖子 -
+  Copyright &copy; 2016 - 王胖子 -
   <span class="credit">Powered by <a href="http://octopress.org">Octopress</a></span>
 </p>
 
