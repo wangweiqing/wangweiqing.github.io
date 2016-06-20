@@ -4,7 +4,7 @@
   <title><![CDATA[进击的王胖子]]></title>
   <link href="http://wangweiqing.github.io/atom.xml" rel="self"/>
   <link href="http://wangweiqing.github.io/"/>
-  <updated>2016-06-20T22:07:05+08:00</updated>
+  <updated>2016-06-20T22:42:43+08:00</updated>
   <id>http://wangweiqing.github.io/</id>
   <author>
     <name><![CDATA[王胖子]]></name>
@@ -12,6 +12,377 @@
   </author>
   <generator uri="http://octopress.org/">Octopress</generator>
 
+  
+  <entry>
+    <title type="html"><![CDATA[Hystrix-工作原理]]></title>
+    <link href="http://wangweiqing.github.io/blog/2016/06/20/hystrix-gong-zuo-yuan-li/"/>
+    <updated>2016-06-20T22:12:40+08:00</updated>
+    <id>http://wangweiqing.github.io/blog/2016/06/20/hystrix-gong-zuo-yuan-li</id>
+    <content type="html"><![CDATA[<h1>前言</h1>
+
+<p>参考文档 <a href="https://github.com/Netflix/Hystrix/wiki/How-it-Works">https://github.com/Netflix/Hystrix/wiki/How-it-Works</a><br/>
+开发团队封装了RxJava框架，对接口的调用进行隔离，监控等。<br/>
+应用了设计模式中的<a href="http://design-patterns.readthedocs.io/zh_CN/latest/behavioral_patterns/observer.html">观察者模式</a>和<a href="http://design-patterns.readthedocs.io/zh_CN/latest/behavioral_patterns/command.html">命令模式</a>。</p>
+
+<h2>工作流程</h2>
+
+<p><img src="https://raw.githubusercontent.com/wiki/Netflix/Hystrix/images/hystrix-command-flow-chart.png" alt="" /></p>
+
+<ol>
+<li>构建一个HystrixCommand或者一个HystrixObservableCommand的对象用于执行一个外部依赖的调用。</li>
+<li>执行command，不论是HystrixCommand还是HyStrixObservableCommand对象，都会调用AbstractCommand的toObservable()去执行后续的操作。</li>
+<li>判断是否有调用缓存。如果有缓存，调用缓存返回结果。</li>
+<li>判断调用链路是否通畅。</li>
+<li>判断用于执行以来服务调用的Thread Pool/Queue/Semaphore满了。</li>
+<li>调用HystrixObservableCommand重写的construct()方法或者HystrixCommand重写的run()方法。</li>
+<li>汇总调用链路的调用成功失败率。</li>
+<li>获得降级方案。</li>
+<li>返回一个调用成功的调用。</li>
+</ol>
+
+
+<h2>关键代码</h2>
+
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+<span class='line-number'>9</span>
+<span class='line-number'>10</span>
+<span class='line-number'>11</span>
+<span class='line-number'>12</span>
+<span class='line-number'>13</span>
+<span class='line-number'>14</span>
+<span class='line-number'>15</span>
+<span class='line-number'>16</span>
+<span class='line-number'>17</span>
+<span class='line-number'>18</span>
+<span class='line-number'>19</span>
+<span class='line-number'>20</span>
+<span class='line-number'>21</span>
+<span class='line-number'>22</span>
+<span class='line-number'>23</span>
+<span class='line-number'>24</span>
+<span class='line-number'>25</span>
+<span class='line-number'>26</span>
+<span class='line-number'>27</span>
+<span class='line-number'>28</span>
+<span class='line-number'>29</span>
+<span class='line-number'>30</span>
+<span class='line-number'>31</span>
+<span class='line-number'>32</span>
+<span class='line-number'>33</span>
+<span class='line-number'>34</span>
+<span class='line-number'>35</span>
+<span class='line-number'>36</span>
+<span class='line-number'>37</span>
+<span class='line-number'>38</span>
+<span class='line-number'>39</span>
+<span class='line-number'>40</span>
+<span class='line-number'>41</span>
+<span class='line-number'>42</span>
+<span class='line-number'>43</span>
+<span class='line-number'>44</span>
+<span class='line-number'>45</span>
+<span class='line-number'>46</span>
+<span class='line-number'>47</span>
+<span class='line-number'>48</span>
+<span class='line-number'>49</span>
+<span class='line-number'>50</span>
+<span class='line-number'>51</span>
+<span class='line-number'>52</span>
+<span class='line-number'>53</span>
+<span class='line-number'>54</span>
+<span class='line-number'>55</span>
+<span class='line-number'>56</span>
+<span class='line-number'>57</span>
+<span class='line-number'>58</span>
+<span class='line-number'>59</span>
+<span class='line-number'>60</span>
+<span class='line-number'>61</span>
+<span class='line-number'>62</span>
+<span class='line-number'>63</span>
+<span class='line-number'>64</span>
+<span class='line-number'>65</span>
+<span class='line-number'>66</span>
+<span class='line-number'>67</span>
+<span class='line-number'>68</span>
+<span class='line-number'>69</span>
+<span class='line-number'>70</span>
+<span class='line-number'>71</span>
+<span class='line-number'>72</span>
+<span class='line-number'>73</span>
+<span class='line-number'>74</span>
+<span class='line-number'>75</span>
+<span class='line-number'>76</span>
+<span class='line-number'>77</span>
+<span class='line-number'>78</span>
+<span class='line-number'>79</span>
+<span class='line-number'>80</span>
+<span class='line-number'>81</span>
+<span class='line-number'>82</span>
+<span class='line-number'>83</span>
+<span class='line-number'>84</span>
+<span class='line-number'>85</span>
+<span class='line-number'>86</span>
+<span class='line-number'>87</span>
+<span class='line-number'>88</span>
+<span class='line-number'>89</span>
+<span class='line-number'>90</span>
+<span class='line-number'>91</span>
+<span class='line-number'>92</span>
+<span class='line-number'>93</span>
+<span class='line-number'>94</span>
+<span class='line-number'>95</span>
+<span class='line-number'>96</span>
+<span class='line-number'>97</span>
+<span class='line-number'>98</span>
+<span class='line-number'>99</span>
+<span class='line-number'>100</span>
+<span class='line-number'>101</span>
+<span class='line-number'>102</span>
+<span class='line-number'>103</span>
+<span class='line-number'>104</span>
+<span class='line-number'>105</span>
+<span class='line-number'>106</span>
+<span class='line-number'>107</span>
+<span class='line-number'>108</span>
+<span class='line-number'>109</span>
+<span class='line-number'>110</span>
+<span class='line-number'>111</span>
+<span class='line-number'>112</span>
+<span class='line-number'>113</span>
+<span class='line-number'>114</span>
+<span class='line-number'>115</span>
+<span class='line-number'>116</span>
+<span class='line-number'>117</span>
+<span class='line-number'>118</span>
+<span class='line-number'>119</span>
+<span class='line-number'>120</span>
+<span class='line-number'>121</span>
+<span class='line-number'>122</span>
+<span class='line-number'>123</span>
+<span class='line-number'>124</span>
+<span class='line-number'>125</span>
+<span class='line-number'>126</span>
+<span class='line-number'>127</span>
+<span class='line-number'>128</span>
+</pre></td><td class='code'><pre><code class='java'><span class='line'><span class="kd">public</span> <span class="n">Observable</span><span class="o">&lt;</span><span class="n">R</span><span class="o">&gt;</span> <span class="nf">toObservable</span><span class="o">()</span> <span class="o">{</span>
+</span><span class='line'>    <span class="cm">/* this is a stateful object so can only be used once */</span>
+</span><span class='line'>    <span class="k">if</span> <span class="o">(!</span><span class="n">commandState</span><span class="o">.</span><span class="na">compareAndSet</span><span class="o">(</span><span class="n">CommandState</span><span class="o">.</span><span class="na">NOT_STARTED</span><span class="o">,</span> <span class="n">CommandState</span><span class="o">.</span><span class="na">OBSERVABLE_CHAIN_CREATED</span><span class="o">))</span> <span class="o">{</span>
+</span><span class='line'>        <span class="k">throw</span> <span class="k">new</span> <span class="nf">IllegalStateException</span><span class="o">(</span><span class="s">&quot;This instance can only be executed once. Please instantiate a new instance.&quot;</span><span class="o">);</span>
+</span><span class='line'>    <span class="o">}</span>
+</span><span class='line'>
+</span><span class='line'>    <span class="n">commandStartTimestamp</span> <span class="o">=</span> <span class="n">System</span><span class="o">.</span><span class="na">currentTimeMillis</span><span class="o">();</span>
+</span><span class='line'>
+</span><span class='line'>    <span class="k">if</span> <span class="o">(</span><span class="n">properties</span><span class="o">.</span><span class="na">requestLogEnabled</span><span class="o">().</span><span class="na">get</span><span class="o">())</span> <span class="o">{</span>
+</span><span class='line'>        <span class="c1">// log this command execution regardless of what happened</span>
+</span><span class='line'>        <span class="k">if</span> <span class="o">(</span><span class="n">currentRequestLog</span> <span class="o">!=</span> <span class="kc">null</span><span class="o">)</span> <span class="o">{</span>
+</span><span class='line'>            <span class="n">currentRequestLog</span><span class="o">.</span><span class="na">addExecutedCommand</span><span class="o">(</span><span class="k">this</span><span class="o">);</span>
+</span><span class='line'>        <span class="o">}</span>
+</span><span class='line'>    <span class="o">}</span>
+</span><span class='line'>
+</span><span class='line'>    <span class="kd">final</span> <span class="kt">boolean</span> <span class="n">requestCacheEnabled</span> <span class="o">=</span> <span class="n">isRequestCachingEnabled</span><span class="o">();</span>
+</span><span class='line'>    <span class="kd">final</span> <span class="n">String</span> <span class="n">cacheKey</span> <span class="o">=</span> <span class="n">getCacheKey</span><span class="o">();</span>
+</span><span class='line'>    <span class="kd">final</span> <span class="n">AbstractCommand</span><span class="o">&lt;</span><span class="n">R</span><span class="o">&gt;</span> <span class="n">_cmd</span> <span class="o">=</span> <span class="k">this</span><span class="o">;</span>
+</span><span class='line'>
+</span><span class='line'>     <span class="cm">/* try from cache first */</span>
+</span><span class='line'>    <span class="k">if</span> <span class="o">(</span><span class="n">requestCacheEnabled</span><span class="o">)</span> <span class="o">{</span>
+</span><span class='line'>        <span class="n">HystrixCommandResponseFromCache</span><span class="o">&lt;</span><span class="n">R</span><span class="o">&gt;</span> <span class="n">fromCache</span> <span class="o">=</span> <span class="o">(</span><span class="n">HystrixCommandResponseFromCache</span><span class="o">&lt;</span><span class="n">R</span><span class="o">&gt;)</span> <span class="n">requestCache</span><span class="o">.</span><span class="na">get</span><span class="o">(</span><span class="n">cacheKey</span><span class="o">);</span>
+</span><span class='line'>        <span class="k">if</span> <span class="o">(</span><span class="n">fromCache</span> <span class="o">!=</span> <span class="kc">null</span><span class="o">)</span> <span class="o">{</span>
+</span><span class='line'>            <span class="n">isResponseFromCache</span> <span class="o">=</span> <span class="kc">true</span><span class="o">;</span>
+</span><span class='line'>            <span class="k">return</span> <span class="nf">handleRequestCacheHitAndEmitValues</span><span class="o">(</span><span class="n">fromCache</span><span class="o">,</span> <span class="n">_cmd</span><span class="o">);</span>
+</span><span class='line'>        <span class="o">}</span>
+</span><span class='line'>    <span class="o">}</span>
+</span><span class='line'>
+</span><span class='line'>    <span class="c1">//doOnCompleted handler already did all of the SUCCESS work</span>
+</span><span class='line'>    <span class="c1">//doOnError handler already did all of the FAILURE/TIMEOUT/REJECTION/BAD_REQUEST work</span>
+</span><span class='line'>    <span class="kd">final</span> <span class="n">Action0</span> <span class="n">terminateCommandCleanup</span> <span class="o">=</span> <span class="k">new</span> <span class="nf">Action0</span><span class="o">()</span> <span class="o">{</span>
+</span><span class='line'>
+</span><span class='line'>        <span class="nd">@Override</span>
+</span><span class='line'>        <span class="kd">public</span> <span class="kt">void</span> <span class="nf">call</span><span class="o">()</span> <span class="o">{</span>
+</span><span class='line'>            <span class="k">if</span> <span class="o">(</span><span class="n">_cmd</span><span class="o">.</span><span class="na">commandState</span><span class="o">.</span><span class="na">compareAndSet</span><span class="o">(</span><span class="n">CommandState</span><span class="o">.</span><span class="na">OBSERVABLE_CHAIN_CREATED</span><span class="o">,</span> <span class="n">CommandState</span><span class="o">.</span><span class="na">TERMINAL</span><span class="o">))</span> <span class="o">{</span>
+</span><span class='line'>                <span class="n">handleCommandEnd</span><span class="o">(</span><span class="n">_cmd</span><span class="o">,</span> <span class="kc">false</span><span class="o">);</span> <span class="c1">//user code never ran</span>
+</span><span class='line'>            <span class="o">}</span> <span class="k">else</span> <span class="nf">if</span> <span class="o">(</span><span class="n">_cmd</span><span class="o">.</span><span class="na">commandState</span><span class="o">.</span><span class="na">compareAndSet</span><span class="o">(</span><span class="n">CommandState</span><span class="o">.</span><span class="na">USER_CODE_EXECUTED</span><span class="o">,</span> <span class="n">CommandState</span><span class="o">.</span><span class="na">TERMINAL</span><span class="o">))</span> <span class="o">{</span>
+</span><span class='line'>                <span class="n">handleCommandEnd</span><span class="o">(</span><span class="n">_cmd</span><span class="o">,</span> <span class="kc">true</span><span class="o">);</span> <span class="c1">//user code did run</span>
+</span><span class='line'>            <span class="o">}</span>
+</span><span class='line'>        <span class="o">}</span>
+</span><span class='line'>    <span class="o">};</span>
+</span><span class='line'>
+</span><span class='line'>    <span class="c1">//mark the command as CANCELLED and store the latency (in addition to standard cleanup)</span>
+</span><span class='line'>    <span class="kd">final</span> <span class="n">Action0</span> <span class="n">unsubscribeCommandCleanup</span> <span class="o">=</span> <span class="k">new</span> <span class="nf">Action0</span><span class="o">()</span> <span class="o">{</span>
+</span><span class='line'>        <span class="nd">@Override</span>
+</span><span class='line'>        <span class="kd">public</span> <span class="kt">void</span> <span class="nf">call</span><span class="o">()</span> <span class="o">{</span>
+</span><span class='line'>            <span class="k">if</span> <span class="o">(</span><span class="n">_cmd</span><span class="o">.</span><span class="na">commandState</span><span class="o">.</span><span class="na">compareAndSet</span><span class="o">(</span><span class="n">CommandState</span><span class="o">.</span><span class="na">OBSERVABLE_CHAIN_CREATED</span><span class="o">,</span> <span class="n">CommandState</span><span class="o">.</span><span class="na">UNSUBSCRIBED</span><span class="o">))</span> <span class="o">{</span>
+</span><span class='line'>                <span class="n">_cmd</span><span class="o">.</span><span class="na">eventNotifier</span><span class="o">.</span><span class="na">markEvent</span><span class="o">(</span><span class="n">HystrixEventType</span><span class="o">.</span><span class="na">CANCELLED</span><span class="o">,</span> <span class="n">_cmd</span><span class="o">.</span><span class="na">commandKey</span><span class="o">);</span>
+</span><span class='line'>                <span class="n">_cmd</span><span class="o">.</span><span class="na">executionResultAtTimeOfCancellation</span> <span class="o">=</span> <span class="n">_cmd</span><span class="o">.</span><span class="na">executionResult</span>
+</span><span class='line'>                        <span class="o">.</span><span class="na">addEvent</span><span class="o">((</span><span class="kt">int</span><span class="o">)</span> <span class="o">(</span><span class="n">System</span><span class="o">.</span><span class="na">currentTimeMillis</span><span class="o">()</span> <span class="o">-</span> <span class="n">_cmd</span><span class="o">.</span><span class="na">commandStartTimestamp</span><span class="o">),</span> <span class="n">HystrixEventType</span><span class="o">.</span><span class="na">CANCELLED</span><span class="o">);</span>
+</span><span class='line'>                <span class="n">handleCommandEnd</span><span class="o">(</span><span class="n">_cmd</span><span class="o">,</span> <span class="kc">false</span><span class="o">);</span> <span class="c1">//user code never ran</span>
+</span><span class='line'>            <span class="o">}</span> <span class="k">else</span> <span class="nf">if</span> <span class="o">(</span><span class="n">_cmd</span><span class="o">.</span><span class="na">commandState</span><span class="o">.</span><span class="na">compareAndSet</span><span class="o">(</span><span class="n">CommandState</span><span class="o">.</span><span class="na">USER_CODE_EXECUTED</span><span class="o">,</span> <span class="n">CommandState</span><span class="o">.</span><span class="na">UNSUBSCRIBED</span><span class="o">))</span> <span class="o">{</span>
+</span><span class='line'>                <span class="n">_cmd</span><span class="o">.</span><span class="na">eventNotifier</span><span class="o">.</span><span class="na">markEvent</span><span class="o">(</span><span class="n">HystrixEventType</span><span class="o">.</span><span class="na">CANCELLED</span><span class="o">,</span> <span class="n">_cmd</span><span class="o">.</span><span class="na">commandKey</span><span class="o">);</span>
+</span><span class='line'>                <span class="n">_cmd</span><span class="o">.</span><span class="na">executionResultAtTimeOfCancellation</span> <span class="o">=</span> <span class="n">_cmd</span><span class="o">.</span><span class="na">executionResult</span>
+</span><span class='line'>                        <span class="o">.</span><span class="na">addEvent</span><span class="o">((</span><span class="kt">int</span><span class="o">)</span> <span class="o">(</span><span class="n">System</span><span class="o">.</span><span class="na">currentTimeMillis</span><span class="o">()</span> <span class="o">-</span> <span class="n">_cmd</span><span class="o">.</span><span class="na">commandStartTimestamp</span><span class="o">),</span> <span class="n">HystrixEventType</span><span class="o">.</span><span class="na">CANCELLED</span><span class="o">);</span>
+</span><span class='line'>                <span class="n">handleCommandEnd</span><span class="o">(</span><span class="n">_cmd</span><span class="o">,</span> <span class="kc">true</span><span class="o">);</span> <span class="c1">//user code did run</span>
+</span><span class='line'>            <span class="o">}</span>
+</span><span class='line'>        <span class="o">}</span>
+</span><span class='line'>    <span class="o">};</span>
+</span><span class='line'>
+</span><span class='line'>    <span class="kd">final</span> <span class="n">Func0</span><span class="o">&lt;</span><span class="n">Observable</span><span class="o">&lt;</span><span class="n">R</span><span class="o">&gt;&gt;</span> <span class="n">applyHystrixSemantics</span> <span class="o">=</span> <span class="k">new</span> <span class="n">Func0</span><span class="o">&lt;</span><span class="n">Observable</span><span class="o">&lt;</span><span class="n">R</span><span class="o">&gt;&gt;()</span> <span class="o">{</span>
+</span><span class='line'>        <span class="nd">@Override</span>
+</span><span class='line'>        <span class="kd">public</span> <span class="n">Observable</span><span class="o">&lt;</span><span class="n">R</span><span class="o">&gt;</span> <span class="nf">call</span><span class="o">()</span> <span class="o">{</span>
+</span><span class='line'>            <span class="k">return</span> <span class="nf">applyHystrixSemantics</span><span class="o">(</span><span class="n">_cmd</span><span class="o">);</span>
+</span><span class='line'>        <span class="o">}</span>
+</span><span class='line'>    <span class="o">};</span>
+</span><span class='line'>
+</span><span class='line'>    <span class="kd">final</span> <span class="n">Func1</span><span class="o">&lt;</span><span class="n">R</span><span class="o">,</span> <span class="n">R</span><span class="o">&gt;</span> <span class="n">wrapWithAllOnNextHooks</span> <span class="o">=</span> <span class="k">new</span> <span class="n">Func1</span><span class="o">&lt;</span><span class="n">R</span><span class="o">,</span> <span class="n">R</span><span class="o">&gt;()</span> <span class="o">{</span>
+</span><span class='line'>        <span class="nd">@Override</span>
+</span><span class='line'>        <span class="kd">public</span> <span class="n">R</span> <span class="nf">call</span><span class="o">(</span><span class="n">R</span> <span class="n">r</span><span class="o">)</span> <span class="o">{</span>
+</span><span class='line'>            <span class="n">R</span> <span class="n">afterFirstApplication</span> <span class="o">=</span> <span class="n">r</span><span class="o">;</span>
+</span><span class='line'>
+</span><span class='line'>            <span class="k">try</span> <span class="o">{</span>
+</span><span class='line'>                <span class="n">afterFirstApplication</span> <span class="o">=</span> <span class="n">executionHook</span><span class="o">.</span><span class="na">onComplete</span><span class="o">(</span><span class="n">_cmd</span><span class="o">,</span> <span class="n">r</span><span class="o">);</span>
+</span><span class='line'>            <span class="o">}</span> <span class="k">catch</span> <span class="o">(</span><span class="n">Throwable</span> <span class="n">hookEx</span><span class="o">)</span> <span class="o">{</span>
+</span><span class='line'>                <span class="n">logger</span><span class="o">.</span><span class="na">warn</span><span class="o">(</span><span class="s">&quot;Error calling HystrixCommandExecutionHook.onComplete&quot;</span><span class="o">,</span> <span class="n">hookEx</span><span class="o">);</span>
+</span><span class='line'>            <span class="o">}</span>
+</span><span class='line'>
+</span><span class='line'>            <span class="k">try</span> <span class="o">{</span>
+</span><span class='line'>                <span class="k">return</span> <span class="n">executionHook</span><span class="o">.</span><span class="na">onEmit</span><span class="o">(</span><span class="n">_cmd</span><span class="o">,</span> <span class="n">afterFirstApplication</span><span class="o">);</span>
+</span><span class='line'>            <span class="o">}</span> <span class="k">catch</span> <span class="o">(</span><span class="n">Throwable</span> <span class="n">hookEx</span><span class="o">)</span> <span class="o">{</span>
+</span><span class='line'>                <span class="n">logger</span><span class="o">.</span><span class="na">warn</span><span class="o">(</span><span class="s">&quot;Error calling HystrixCommandExecutionHook.onEmit&quot;</span><span class="o">,</span> <span class="n">hookEx</span><span class="o">);</span>
+</span><span class='line'>                <span class="k">return</span> <span class="n">afterFirstApplication</span><span class="o">;</span>
+</span><span class='line'>            <span class="o">}</span>
+</span><span class='line'>        <span class="o">}</span>
+</span><span class='line'>    <span class="o">};</span>
+</span><span class='line'>
+</span><span class='line'>    <span class="kd">final</span> <span class="n">Action0</span> <span class="n">fireOnCompletedHook</span> <span class="o">=</span> <span class="k">new</span> <span class="nf">Action0</span><span class="o">()</span> <span class="o">{</span>
+</span><span class='line'>        <span class="nd">@Override</span>
+</span><span class='line'>        <span class="kd">public</span> <span class="kt">void</span> <span class="nf">call</span><span class="o">()</span> <span class="o">{</span>
+</span><span class='line'>            <span class="k">try</span> <span class="o">{</span>
+</span><span class='line'>                <span class="n">executionHook</span><span class="o">.</span><span class="na">onSuccess</span><span class="o">(</span><span class="n">_cmd</span><span class="o">);</span>
+</span><span class='line'>            <span class="o">}</span> <span class="k">catch</span> <span class="o">(</span><span class="n">Throwable</span> <span class="n">hookEx</span><span class="o">)</span> <span class="o">{</span>
+</span><span class='line'>                <span class="n">logger</span><span class="o">.</span><span class="na">warn</span><span class="o">(</span><span class="s">&quot;Error calling HystrixCommandExecutionHook.onSuccess&quot;</span><span class="o">,</span> <span class="n">hookEx</span><span class="o">);</span>
+</span><span class='line'>            <span class="o">}</span>
+</span><span class='line'>        <span class="o">}</span>
+</span><span class='line'>    <span class="o">};</span>
+</span><span class='line'>
+</span><span class='line'>    <span class="n">Observable</span><span class="o">&lt;</span><span class="n">R</span><span class="o">&gt;</span> <span class="n">hystrixObservable</span> <span class="o">=</span>
+</span><span class='line'>            <span class="n">Observable</span><span class="o">.</span><span class="na">defer</span><span class="o">(</span><span class="n">applyHystrixSemantics</span><span class="o">)</span>
+</span><span class='line'>                    <span class="o">.</span><span class="na">map</span><span class="o">(</span><span class="n">wrapWithAllOnNextHooks</span><span class="o">);</span>
+</span><span class='line'>
+</span><span class='line'>
+</span><span class='line'>    <span class="n">Observable</span><span class="o">&lt;</span><span class="n">R</span><span class="o">&gt;</span> <span class="n">afterCache</span><span class="o">;</span>
+</span><span class='line'>
+</span><span class='line'>    <span class="c1">// put in cache</span>
+</span><span class='line'>    <span class="k">if</span> <span class="o">(</span><span class="n">requestCacheEnabled</span> <span class="o">&amp;&amp;</span> <span class="n">cacheKey</span> <span class="o">!=</span> <span class="kc">null</span><span class="o">)</span> <span class="o">{</span>
+</span><span class='line'>        <span class="c1">// wrap it for caching</span>
+</span><span class='line'>        <span class="n">HystrixCachedObservable</span><span class="o">&lt;</span><span class="n">R</span><span class="o">&gt;</span> <span class="n">toCache</span> <span class="o">=</span> <span class="n">HystrixCachedObservable</span><span class="o">.</span><span class="na">from</span><span class="o">(</span><span class="n">hystrixObservable</span><span class="o">,</span> <span class="k">this</span><span class="o">);</span>
+</span><span class='line'>        <span class="n">HystrixCommandResponseFromCache</span><span class="o">&lt;</span><span class="n">R</span><span class="o">&gt;</span> <span class="n">fromCache</span> <span class="o">=</span> <span class="o">(</span><span class="n">HystrixCommandResponseFromCache</span><span class="o">&lt;</span><span class="n">R</span><span class="o">&gt;)</span> <span class="n">requestCache</span><span class="o">.</span><span class="na">putIfAbsent</span><span class="o">(</span><span class="n">cacheKey</span><span class="o">,</span> <span class="n">toCache</span><span class="o">);</span>
+</span><span class='line'>        <span class="k">if</span> <span class="o">(</span><span class="n">fromCache</span> <span class="o">!=</span> <span class="kc">null</span><span class="o">)</span> <span class="o">{</span>
+</span><span class='line'>            <span class="c1">// another thread beat us so we&#39;ll use the cached value instead</span>
+</span><span class='line'>            <span class="n">toCache</span><span class="o">.</span><span class="na">unsubscribe</span><span class="o">();</span>
+</span><span class='line'>            <span class="n">isResponseFromCache</span> <span class="o">=</span> <span class="kc">true</span><span class="o">;</span>
+</span><span class='line'>            <span class="k">return</span> <span class="nf">handleRequestCacheHitAndEmitValues</span><span class="o">(</span><span class="n">fromCache</span><span class="o">,</span> <span class="n">_cmd</span><span class="o">);</span>
+</span><span class='line'>        <span class="o">}</span> <span class="k">else</span> <span class="o">{</span>
+</span><span class='line'>            <span class="c1">// we just created an ObservableCommand so we cast and return it</span>
+</span><span class='line'>            <span class="n">afterCache</span> <span class="o">=</span> <span class="n">toCache</span><span class="o">.</span><span class="na">toObservable</span><span class="o">();</span>
+</span><span class='line'>        <span class="o">}</span>
+</span><span class='line'>    <span class="o">}</span> <span class="k">else</span> <span class="o">{</span>
+</span><span class='line'>        <span class="n">afterCache</span> <span class="o">=</span> <span class="n">hystrixObservable</span><span class="o">;</span>
+</span><span class='line'>    <span class="o">}</span>
+</span><span class='line'>
+</span><span class='line'>    <span class="k">return</span> <span class="n">afterCache</span>
+</span><span class='line'>            <span class="o">.</span><span class="na">doOnTerminate</span><span class="o">(</span><span class="n">terminateCommandCleanup</span><span class="o">)</span>     <span class="c1">// perform cleanup once (either on normal terminal state (this line), or unsubscribe (next line))</span>
+</span><span class='line'>            <span class="o">.</span><span class="na">doOnUnsubscribe</span><span class="o">(</span><span class="n">unsubscribeCommandCleanup</span><span class="o">)</span> <span class="c1">// perform cleanup once</span>
+</span><span class='line'>            <span class="o">.</span><span class="na">doOnCompleted</span><span class="o">(</span><span class="n">fireOnCompletedHook</span><span class="o">);</span>
+</span><span class='line'><span class="o">}</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<h1>RxJava中的Observable和Subscriber</h1>
+
+<h2>参考资料</h2>
+
+<p><a href="https://mcxiaoke.gitbooks.io/rxdocs/content/">https://mcxiaoke.gitbooks.io/rxdocs/content/</a><br/>
+<a href="https://gank.io/post/560e15be2dca930e00da1083#toc_10">https://gank.io/post/560e15be2dca930e00da1083#toc_10</a><br/>
+<a href="http://www.jianshu.com/p/c83996149f5b">http://www.jianshu.com/p/c83996149f5b</a><br/>
+RxJava是 <a href="http://reactivex.io/">ReactiveX</a> 在JVM上的一个实现，ReactiveX使用Observable序列组合异步和基于事件的程序。更多关于ReactiveX的资料，可以查看 <a href="https://github.com/mcxiaoke/RxDocs/blob/master/docs/Intro.md">ReactiveX 介绍</a> 页面。</p>
+
+<h2>Observable</h2>
+
+<p>在ReactiveX中，一个观察者(Observer)订阅一个可观察对象(Observable)。观察者对Observable发射的数据或数据序列作出响应。这种模式可以极大地简化并发操作，因为它创建了一个处于待命状态的观察者哨兵，在未来某个时刻响应Observable的通知，不需要阻塞等待Observable发射数据。<br/>
+在Hystrix主要使用到了Funx类、Actionx类、defer()方法、map()方法、以及一列的do方法。</p>
+
+<h3>Funx类和ActionX类</h3>
+
+<p>Funx类和Actionx类用于包装有x参数方法的类。Funx类和Actionx类的区别在于Actionx类封装的方法是没有返回值的。Funx类封装的是有返回值的方法。</p>
+
+<h3>defer()方法</h3>
+
+<p>Defer操作符会一直等待直到有观察者订阅它，然后它使用Observable工厂方法生成一个Observable。它对每个观察者都这样做，因此尽管每个订阅者都以为自己订阅的是同一个Observable，事实上每个订阅者获取的是它们自己的单独的数据序列。<br/>
+<img src="https://mcxiaoke.gitbooks.io/rxdocs/content/images/operators/defer.c.png" alt="" /><br/>
+在Hystrix中，将一次远程调用封装为一个Observable，并使用defer()方法，在它被订阅的时候启动调用。</p>
+
+<h3>map()方法</h3>
+
+<p>Map操作符对原始Observable发射的每一项数据应用一个你选择的函数，然后返回一个发射这些结果的Observable。<br/>
+<img src="https://mcxiaoke.gitbooks.io/rxdocs/content/images/operators/map.png" alt="" /><br/>
+在Hystrix中，HystrixCommandExecutionHook方法中的onEmit()方法所封装的发挥处理方法将通过map()方法进行调用。</p>
+
+<h3>do()方法</h3>
+
+<p>RxJava通过一系列的do方法注册回调。当Observable的某个事件发生时，Rx会在与Observable链关联的正常通知集合中调用它。Rx实现了多种操作符用于达到这个目的。<br/>
+<img src="https://mcxiaoke.gitbooks.io/rxdocs/content/images/operators/do.c.png" alt="" /><br/>
+在Hystrix中，主要用到了</p>
+
+<ol>
+<li>doOnTerminate</li>
+<li>doOnUnsubscribe</li>
+<li>doOnCompleted</li>
+</ol>
+
+
+<p>用于进行调用环境的清理，调用监控数据的收集。</p>
+
+<h2>Subscriber</h2>
+
+<p>Subscribe方法用于将观察者连接到Observable。在Hystrix中，使用一个BlockingObservable中的toFuture()方法，注册一个了Subscribe用户启动依赖服务的调用，并将调用结果放置在Future中供Command对象获取。</p>
+
+<h1>工作原理</h1>
+
+<p>通过前面的描述，我们可以发现Hystrix的整个工作流程中的第2步骤到第9步骤都是通过RxJava来实现的。<br/>
+首先进入到toObservable方法中，检查是否存在缓存，如果存在缓存，则返回结果。<br/>
+如果没有，则通过applyHystrixSemantics实例化一个Observable对象，在call方法中进行4、5、6、7、8步骤的执行。<br/>
+最后将环境清理、监控数据收集的方法通过do方法加载到返回的Observable对象上，通过BlockingObservable注册一个Subscribe启动这次调用，并返回一个Future。</p>
+
+<h2>通路熔断器</h2>
+
+<p><img src="https://raw.githubusercontent.com/wiki/Netflix/Hystrix/images/circuit-breaker-1280.png" alt="" /><br/>
+HystrixCircuitBreaker对象会根据设定的一些值，判断是否开启熔断机制。</p>
+
+<ol>
+<li>通路在当前时间窗口的调用量超过预设上限时（HystrixCommandProperties.circuitBreakerRequestVolumeThreshold()）。</li>
+<li>通路在当前时间窗口的调用失败率超过预设上限时（HystrixCommandProperties.circuitBreakerErrorThresholdPercentage()）。</li>
+<li>熔断机制生效。</li>
+<li>熔断机制生效时，所有调用走一个短通路，即预设的fallback。</li>
+<li>当下一个窗口（HystrixCommandProperties.circuitBreakerSleepWindowInMilliseconds()）来临时，所有统计数据从0开始，熔断失效，开启新一轮熔断判定。</li>
+</ol>
+
+
+<h2>隔离机制</h2>
+
+<p><img src="https://github.com/Netflix/Hystrix/wiki/images/soa-5-isolation-focused-640.png" alt="" /><br/>
+Hystrix为了将各个调用隔离开来，使用了threadPool和Semaphores两种方式，执行调用的线程。具体的代码可以看一下AbstractCommand中的applyHystrixSemantics方法。</p>
+
+<h2>调用合并</h2>
+
+<p><img src="https://github.com/Netflix/Hystrix/wiki/images/collapser-640.png" alt="" /><br/>
+Hystrix中提供了一个HystrixCollapser的抽象类用于调用合并。用户在使用的时候，需要实例化一个继承自HystrixCollapser的对象，在对象中设置指定的参数组合而成的key。当同样的请求，即指定的参数一致的请求，请求过来，若没有缓存的结果，将构建一个HystrixCommand对象来执行这次调用。并将调用结果缓存起来，下次有同样的key的调用，直接返回调用结果。</p>
+]]></content>
+  </entry>
   
   <entry>
     <title type="html"><![CDATA[聊聊并发-锁]]></title>

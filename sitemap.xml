@@ -1,6 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.sitemaps.org/schemas/sitemap/0.9 http://www.sitemaps.org/schemas/sitemap/0.9/sitemap.xsd" xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
+    <loc>http://wangweiqing.github.io/blog/2016/06/20/hystrix-gong-zuo-yuan-li/</loc>
+    <lastmod>2016-06-20T22:12:40+08:00</lastmod>
+  </url>
+  <url>
     <loc>http://wangweiqing.github.io/blog/2016/05/09/liao-liao-bing-fa-suo/</loc>
     <lastmod>2016-05-09T21:48:19+08:00</lastmod>
   </url>
@@ -22,5 +26,8 @@
   </url>
   <url>
     <loc>http://wangweiqing.github.io/blog/categories/juc/</loc>
+  </url>
+  <url>
+    <loc>http://wangweiqing.github.io/blog/categories/hystrix/</loc>
   </url>
 </urlset>
